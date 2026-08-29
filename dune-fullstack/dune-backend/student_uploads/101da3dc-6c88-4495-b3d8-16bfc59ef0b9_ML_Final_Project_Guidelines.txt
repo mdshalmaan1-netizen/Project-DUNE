@@ -1,0 +1,1 @@
+Machine Learning Final Project: Build a distributed RAG pipeline with vector databases like Chroma or MongoDB. Deadline is October 15th with 40% grade weight.
