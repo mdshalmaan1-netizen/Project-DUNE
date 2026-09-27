@@ -1,0 +1,12 @@
+{
+  "name": "project-dune",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix dune-react run dev",
+    "build": "npm --prefix dune-react run build",
+    "preview": "npm --prefix dune-react run preview",
+    "backend": "npm --prefix dune-backend start",
+    "backend:dev": "npm --prefix dune-backend run dev"
+  }
+}
