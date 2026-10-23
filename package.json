@@ -1,0 +1,11 @@
+{
+  "name": "dune-ai-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dune AI Assistant - Intelligent Academic Assistant",
+  "scripts": {
+    "dev": "npm run start:dune",
+    "start": "npm run start:dune",
+    "start:dune": "powershell -Command \"cd dune-fullstack/dune-backend; .\\venv\\Scripts\\python.exe -m uvicorn main:app --reload --port 8000\""
+  }
+}

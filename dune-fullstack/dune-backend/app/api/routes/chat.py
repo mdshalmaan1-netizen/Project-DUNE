@@ -17,6 +17,7 @@ class SendMessageBody(BaseModel):
     history: Optional[List[dict]] = None
     apiKey: Optional[str] = None
     gemini_api_key: Optional[str] = None
+    documents: Optional[List[dict]] = None
 
 class ConfirmActionBody(BaseModel):
     actionId: str
@@ -31,7 +32,14 @@ async def send_message(body: SendMessageBody, current=Depends(get_current_user))
     user_msg = ChatMessage(user_id=user_id, conversation_id=conversation_id, role="user", text=body.text)
     await db.chat_history.insert_one(user_msg.model_dump())
 
-    result = await process_message(user_id, conversation_id, body.text, body.history, api_key=api_key)
+    result = await process_message(
+        user_id,
+        conversation_id,
+        body.text,
+        body.history,
+        api_key=api_key,
+        client_docs=body.documents
+    )
 
     assistant_msg = ChatMessage(
         user_id=user_id, conversation_id=conversation_id, role="assistant",

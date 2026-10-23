@@ -20,3 +20,13 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Local data & storage
+chroma_db/
+chroma_storage/
+student_uploads/
+scratch/
+test_docs/
+dune_before_ui_changes.html
+*.log
+

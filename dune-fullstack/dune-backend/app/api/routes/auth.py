@@ -52,27 +52,57 @@ async def login(body: LoginBody):
     token = create_access_token({"sub": user["id"], "email": user["email"]})
     return {**_public_user(user), "token": token, "access_token": token}
 
+import logging
+
+logger = logging.getLogger("auth")
+
 @router.get("/google")
-async def google_login():
+async def google_login(redirect_uri: Optional[str] = None, prompt: Optional[str] = None):
     """Kicks off login-with-Google (basic profile scopes only)."""
     state = str(uuid.uuid4())
-    url = get_authorization_url(["openid", "email", "profile"], state)
+    default_auth_cb = f"{settings.FRONTEND_URL}/auth/google/callback"
+    r_uri = (redirect_uri or default_auth_cb).strip()
+    chosen_prompt = prompt or "select_account consent"
+    url = get_authorization_url(["openid", "email", "profile"], state=state, redirect_uri=r_uri, prompt=chosen_prompt)
     return RedirectResponse(url)
 
 @router.get("/google/callback")
-async def google_callback(code: str, state: str):
-    creds = exchange_code_for_tokens(code, ["openid", "email", "profile"], state)
-    import requests
-    userinfo = requests.get(
-        "https://www.googleapis.com/oauth2/v2/userinfo",
-        headers={"Authorization": f"Bearer {creds.token}"},
-    ).json()
+@router.get("/google/callback/")
+async def google_callback(code: str, state: str, error: Optional[str] = None):
+    if error:
+        logger.warning(f"[Auth Callback] Google login error: {error}")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?auth_error={error}")
+
+    auth_cb_uri = f"{settings.FRONTEND_URL}/auth/google/callback"
+    creds = exchange_code_for_tokens(code, ["openid", "email", "profile"], state=state, redirect_uri=auth_cb_uri)
+    if not creds:
+        creds = exchange_code_for_tokens(code, ["openid", "email", "profile"], state=state, redirect_uri=settings.GOOGLE_REDIRECT_URI)
+
+    if not creds or not creds.access_token:
+        logger.error("[Auth Callback] Google authentication failed: unable to obtain access token")
+        raise HTTPException(status_code=400, detail="Google authentication failed or expired")
+
+    from app.integrations.google_oauth import get_user_info
+    userinfo = get_user_info(creds.access_token)
+    if not userinfo and creds.id_token:
+        try:
+            import json, base64
+            parts = creds.id_token.split(".")
+            if len(parts) >= 2:
+                payload_str = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+                userinfo = json.loads(base64.urlsafe_b64decode(payload_str.encode("utf-8")).decode("utf-8"))
+        except Exception:
+            pass
+
+    if not userinfo or "email" not in userinfo:
+        logger.error("[Auth Callback] Unable to retrieve verified email from Google user profile")
+        raise HTTPException(status_code=400, detail="Google profile did not contain a verified email")
 
     db = get_db()
     user = await db.users.find_one({"email": userinfo["email"]})
     if not user:
         new_user = User(name=userinfo.get("name", userinfo["email"].split("@")[0]),
-                         email=userinfo["email"], google_id=userinfo.get("id"),
+                         email=userinfo["email"], google_id=userinfo.get("id") or userinfo.get("sub"),
                          avatar_url=userinfo.get("picture"))
         await db.users.insert_one(new_user.model_dump())
         user = new_user.model_dump()
